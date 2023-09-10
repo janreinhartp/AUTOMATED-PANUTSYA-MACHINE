@@ -2,6 +2,20 @@
 // LCD
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+// Motor
+#include "control.h"
+#include "sensor.h"
+#include <Debounce.h>
+#include <AccelStepper.h>
+
+// Encoder
+#include <ClickEncoder.h>
+// Timer 1 for encoder
+#include <TimerOne.h>
+// Save Function
+#include <EEPROMex.h>
+#include <AccelStepper.h>
+
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 bool refreshScreen = false;
 
@@ -34,10 +48,17 @@ byte slowChar[] = {
     B00100,
     B01110};
 
+unsigned long previousMillis = 0;
+const long interval = 1000;
+
+unsigned long previousMillis2 = 0;
+const long interval2 = 200;
+unsigned long currentMillis2 = 0;
+
 // Declaration of LCD Variables
 const int numOfMainScreens = 3;
-const int numOfSettingScreens = 5;
-const int numOfTestMenu = 7;
+const int numOfSettingScreens = 8;
+const int numOfTestMenu = 11;
 int currentScreen = 0;
 
 int currentSettingScreen = 0;
@@ -49,89 +70,59 @@ String screens[numOfMainScreens][2] = {
     {"TEST MACHINE", "ENTER TO TEST"}};
 
 String settings[numOfSettingScreens][2] = {
-    {"GRINDING", "MIN"},
-    {"MIXING", "MIN"},
-    {"SLICE", "SEC"},
-    {"SLICEINTERVAL", "SEC"},
+    {"RICE FLOUR", "MIN"},
+    {"LIQUID", "MIN"},
+    {"BOILING", "MIN"},
+    {"COOKING", "MIN"},
+    {"DISPENSE", "MIN"},
+    {"CUT INTERVAL", "SEC"},
+    {"DROP DELAY", "SEC"},
     {"SAVE SETTINGS", "ENTER TO SAVE"}};
 
 String TestMenuScreen[numOfTestMenu] = {
-    "GRINDER",
-    "MIXING",
-    "EXTRUDING",
+    "RICE FLOUR",
+    "LIQUID",
+    "MIXER",
+    "HEATER",
+    "LINEAR DOOR",
+    "EXTRUDER",
     "CUTTER",
-    "CHEESE GRATER",
-    "CONVEYOR",
+    "CONVEYOR 1",
+    "CONVEYOR 2",
+    "RICE DUSTER",
     "Back to Main Menu"};
 
-double parametersTimer[numOfSettingScreens] = {1, 1, 1, 1, 1};
-double parametersTimerMaxValue[numOfSettingScreens] = {120, 120, 120, 120, 120};
+double parametersTimer[numOfSettingScreens] = {1, 1, 1, 1, 1, 1, 1};
+double parametersTimerMaxValue[numOfSettingScreens] = {1200, 1200, 1200, 1200, 1200, 1200, 1200};
 
-bool settingsFlag = false;
-bool settingEditTimerFlag = false;
-bool runAutoFlag = false;
-bool testMenuFlag = false;
-
-// Motor
-#include "control.h"
-
-// Encoder
-#include <ClickEncoder.h>
-// Timer 1 for encoder
-#include <TimerOne.h>
-// Save Function
-#include <EEPROMex.h>
-#include <AccelStepper.h>
-
-// Declaration of Variables
-// Rotary Encoder Variables
-boolean up = false;
-boolean down = false;
-boolean middle = false;
-ClickEncoder *encoder;
-int16_t last, value;
-// Fast Scroll
-bool fastScroll = false;
-
-unsigned long previousMillis = 0; // will store last time LED was updated
-// constants won't change:
-const long interval = 1000; // interval at which to blink (milliseconds)
-
-unsigned long previousMillis2 = 0; // will store last time LED was updated
-// constants won't change:
-const long interval2 = 200; // interval at which to blink (milliseconds)
-unsigned long currentMillis2 = 0;
-
-// MOTOR DECLARATION
-Control Grinder(40, 47, 100);
-Control ExtruderFwd(42, 100, 100);
-Control ExtruderRwd(43, 100, 100);
-Control Conveyor(41, 35, 100);
-Control Grater(46, 100, 100);
-Control Cutter(34, 100, 100);
-Control TimerCutterDelay(101, 101, 101);
-Control CuttingDelay(100, 100, 100);
-Control CheeseDelay(100, 100, 100);
-
-int grindTimeAdd = 10;
-int mixingTimeAdd = 20;
-int sliceTimeAdd = 30;
-int sliceIntervalTimeAdd = 40;
+int RiceFlourTimeAdd = 10;
+int LiquidTimeAdd = 20;
+int BoilingTimeAdd = 30;
+int CookingTimeAdd = 40;
+int DispenseTimeAdd = 50;
+int CutTimeAdd = 60;
+int DropTimeAdd = 70;
 
 void saveSettings()
 {
-    EEPROM.updateDouble(grindTimeAdd, parametersTimer[0]);         // Grinder
-    EEPROM.updateDouble(mixingTimeAdd, parametersTimer[1]);        // Cooking
-    EEPROM.updateDouble(sliceTimeAdd, parametersTimer[2]);         // Door Open
-    EEPROM.updateDouble(sliceIntervalTimeAdd, parametersTimer[3]); // Door Close
+    EEPROM.writeDouble(RiceFlourTimeAdd, parametersTimer[0]);
+    EEPROM.writeDouble(LiquidTimeAdd, parametersTimer[1]);
+    EEPROM.writeDouble(BoilingTimeAdd, parametersTimer[2]);
+    EEPROM.writeDouble(CookingTimeAdd, parametersTimer[3]);
+    EEPROM.writeDouble(DispenseTimeAdd, parametersTimer[4]);
+    EEPROM.writeDouble(CutTimeAdd, parametersTimer[5]);
+    EEPROM.writeDouble(DropTimeAdd, parametersTimer[6]);
 }
 
 void loadSettings()
 {
-    parametersTimer[0] = EEPROM.readDouble(grindTimeAdd);
-    parametersTimer[1] = EEPROM.readDouble(mixingTimeAdd);
-    parametersTimer[2] = EEPROM.readDouble(sliceTimeAdd);
-    parametersTimer[3] = EEPROM.readDouble(sliceIntervalTimeAdd);
+    parametersTimer[0] = EEPROM.readDouble(RiceFlourTimeAdd);
+    parametersTimer[1] = EEPROM.readDouble(LiquidTimeAdd);
+    parametersTimer[2] = EEPROM.readDouble(BoilingTimeAdd);
+    parametersTimer[3] = EEPROM.readDouble(CookingTimeAdd);
+    parametersTimer[4] = EEPROM.readDouble(DispenseTimeAdd);
+    parametersTimer[5] = EEPROM.readDouble(CutTimeAdd);
+    parametersTimer[6] = EEPROM.readDouble(DropTimeAdd);
 }
 
 char *secondsToHHMMSS(int total_seconds)
@@ -149,147 +140,232 @@ char *secondsToHHMMSS(int total_seconds)
     return hhmmss_str;
 }
 
-void setTimer()
+bool settingsFlag = false;
+bool settingEditTimerFlag = false;
+bool runAutoFlag = false;
+bool testMenuFlag = false;
+
+// Declaration of Variables
+// Rotary Encoder Variables
+boolean up = false;
+boolean down = false;
+boolean middle = false;
+ClickEncoder *encoder;
+int16_t last, value;
+// Fast Scroll
+bool fastScroll = false;
+
+int ena1 = 22;
+int dir1 = 23;
+int step1 = 24;
+
+int ena2 = 25;
+int dir2 = 26;
+int step2 = 27;
+
+int Conveyor1ena = 9;
+int Conveyor1dir = 10;
+int Conveyor1step = 11;
+
+int ena3 = 28;
+int dir3 = 29;
+int step3 = 30;
+
+// Control Declaration
+AccelStepper RiceFlour(AccelStepper::FULL2WIRE, dir1, step1);
+Control RiceFlourTimer(100, 100, 100);
+Control Liquid(43, 100, 100);
+Control Boiling(100, 100, 100);
+Control Mixer(40, 101, 101);
+Control Heater(45, 100, 100);
+Control Dispensing(100, 100, 100);
+Control Linear(42, 100, 100);
+Control Extruder(41, 100, 100);
+Control CutterDelay(100, 100, 100);
+Control CuttingDelay(100, 100, 100);
+Control Cutter(44, 100, 100);
+Control RiceDuster(47, 100, 100);
+Control RiceDusterDelay(100, 100, 100);
+AccelStepper stepConveyor1(AccelStepper::FULL2WIRE, dir2, step2);
+AccelStepper Conveyor1(AccelStepper::FULL2WIRE, Conveyor1dir, Conveyor1step);
+AccelStepper stepConveyor2(AccelStepper::FULL2WIRE, dir3, step3);
+
+Control TimerForNextDrop(100, 100, 100);
+const int pinSen1 = A1;
+const int pinSen2 = A0;
+
+Debounce Sensor1(pinSen1, 100, true);
+Debounce Sensor2(pinSen2, 100, true);
+
+void initSensors()
 {
-    Grinder.setTimer(secondsToHHMMSS(parametersTimer[0] * 60));
-    ExtruderFwd.setTimer(secondsToHHMMSS(parametersTimer[1] * 60));
-    ExtruderRwd.setTimer("000010");
-    Conveyor.setTimer("000010");
-    Grater.setTimer("000010");
-    Cutter.setTimer(secondsToHHMMSS(parametersTimer[2]));
-    TimerCutterDelay.setTimer(secondsToHHMMSS(parametersTimer[3]));
-    CuttingDelay.setTimer(secondsToHHMMSS(60));
-    CheeseDelay.setTimer(secondsToHHMMSS(60));
+    pinMode(pinSen1, INPUT_PULLUP);
+    pinMode(pinSen2, INPUT_PULLUP);
 }
 
-bool testRunCut = false;
-void runAllTest()
+long currentPos1 = 0;
+long lastPos1 = 0;
+long speedStep1 = 8000;
+long moveStep1 = 8000;
+
+long currentPos2 = 0;
+long lastPos2 = 0;
+long speedStep2 = 500;
+long moveStep2 = -1000;
+
+long Conveyor1currentPos = 0;
+long Conveyor1lastPos = 0;
+long Conveyor1speedStep = 400;
+long Conveyor1moveStep = -1000;
+
+long currentPos3 = 0;
+long lastPos3 = 0;
+long speedStep3 = 500;
+long moveStep3 = -1000;
+
+void setRiceFlour()
 {
-    // Grinder.run();
-    // ExtruderFwd.run();
-    // ExtruderRwd.run();
-    // Conveyor.run();
-    // Grater.run();
-    if (testRunCut == true)
+    RiceFlour.setEnablePin(ena1);
+    RiceFlour.setPinsInverted(false, false, false);
+    RiceFlour.setMaxSpeed(speedStep1);
+    RiceFlour.setSpeed(speedStep1);
+    RiceFlour.setAcceleration(speedStep1 * 200);
+    RiceFlour.enableOutputs();
+    lastPos1 = RiceFlour.currentPosition();
+}
+
+void setStepper1()
+{
+    stepConveyor1.setEnablePin(ena2);
+    stepConveyor1.setPinsInverted(false, false, false);
+    stepConveyor1.setMaxSpeed(speedStep2);
+    stepConveyor1.setSpeed(speedStep2);
+    stepConveyor1.setAcceleration(speedStep2 * 200);
+    stepConveyor1.enableOutputs();
+    lastPos2 = stepConveyor1.currentPosition();
+}
+
+void setConveyor1()
+{
+    Conveyor1.setEnablePin(Conveyor1ena);
+    Conveyor1.setPinsInverted(false, false, false);
+    Conveyor1.setMaxSpeed(Conveyor1speedStep);
+    Conveyor1.setSpeed(Conveyor1speedStep);
+    Conveyor1.setAcceleration(Conveyor1speedStep * 200);
+    Conveyor1.enableOutputs();
+    lastPos2 = Conveyor1.currentPosition();
+}
+
+void setStepper2()
+{
+    stepConveyor2.setEnablePin(ena3);
+    stepConveyor2.setPinsInverted(false, false, false);
+    stepConveyor2.setMaxSpeed(speedStep3);
+    stepConveyor2.setSpeed(speedStep3);
+    stepConveyor2.setAcceleration(speedStep3 * 200);
+    stepConveyor2.enableOutputs();
+    lastPos3 = stepConveyor2.currentPosition();
+}
+
+void DisableSteppers()
+{
+    RiceFlour.disableOutputs();
+    stepConveyor1.disableOutputs();
+    stepConveyor2.disableOutputs();
+    Conveyor1.disableOutputs();
+}
+void EnableSteppers()
+{
+    RiceFlour.enableOutputs();
+    stepConveyor1.enableOutputs();
+    stepConveyor2.enableOutputs();
+    Conveyor1.enableOutputs();
+}
+
+bool testFlagRice, testFlagConveyor1, testFlagConveyor2, testFlagCutter = false;
+
+void testRiceFLour()
+{
+    if (RiceFlour.distanceToGo() == 0)
+    {
+        RiceFlour.setCurrentPosition(0);
+        RiceFlour.move(moveStep1);
+    }
+}
+
+void testConveyor1()
+{
+    if (stepConveyor1.distanceToGo() == 0)
+    {
+        stepConveyor1.setCurrentPosition(0);
+        stepConveyor1.move(moveStep2);
+    }
+}
+
+void testRunConveyor1()
+{
+    if (Conveyor1.distanceToGo() == 0)
+    {
+        Conveyor1.setCurrentPosition(0);
+        Conveyor1.move(Conveyor1moveStep);
+    }
+}
+
+void testConveyor2()
+{
+    if (stepConveyor2.distanceToGo() == 0)
+    {
+        stepConveyor2.setCurrentPosition(0);
+        stepConveyor2.move(moveStep3);
+    }
+}
+
+void testRun()
+{
+    if (testFlagRice == true)
+    {
+        RiceFlour.enableOutputs();
+        testRiceFLour();
+    }
+    else
+    {
+        RiceFlour.disableOutputs();
+    }
+
+    if (testFlagConveyor1 == true)
+    {
+        Conveyor1.enableOutputs();
+        testRunConveyor1();
+    }
+    else
+    {
+        Conveyor1.disableOutputs();
+    }
+
+    if (testFlagConveyor2 == true)
+    {
+        stepConveyor2.enableOutputs();
+        testConveyor2();
+    }
+    else
+    {
+        stepConveyor2.disableOutputs();
+    }
+
+    if (testFlagCutter == true)
     {
         RunCut();
     }
 }
-int RunAutoCommand = 0;
-void runAutoFunc()
-{
-    switch (RunAutoCommand)
-    {
-    case 1:
-        RunGrinder();
-        break;
-    case 2:
-        RunMixer();
-        break;
-    case 3:
-        CutterStartDelay();
-        
-        break;
-    case 4:
-        CheeseStartDelay();
-        break;
-    case 5:
-        
-        RunExtrude();
-        break;
-
-    default:
-        runAutoFlag = false;
-        stopAll();
-        break;
-    }
-}
-
-void stopAll()
-{
-
-    RunAutoCommand = 0;
-    runAutoFlag = false;
-    Grinder.stop();
-    Grinder.relayOff();
-    ExtruderFwd.stop();
-    ExtruderFwd.relayOff();
-    ExtruderRwd.stop();
-    ExtruderRwd.relayOff();
-    Conveyor.stop();
-    Conveyor.relayOff();
-    Grater.stop();
-    Grater.relayOff();
-    Cutter.stop();
-    Cutter.relayOff();
-    TimerCutterDelay.stop();
-    TimerCutterDelay.relayOff();
-
-    CuttingDelay.stop();
-    CheeseDelay.stop();
-}
-
-void RunGrinder()
-{
-    Grinder.run();
-    ExtruderFwd.relayOn();
-    if (Grinder.isTimerCompleted() == true)
-    {
-        RunAutoCommand = 2;
-        ExtruderFwd.start();
-    }
-}
 
 int cutStat = 0;
-void RunMixer()
-{
-    ExtruderFwd.run();
-    if (ExtruderFwd.isTimerCompleted() == true)
-    {
-        delay(300);
-        ExtruderRwd.relayOn();
-        Conveyor.relayOn();
-        
-CuttingDelay.start();  RunAutoCommand = 3;
-    }
-}
-
-void CutterStartDelay(){
-    CuttingDelay.run();
-    if (CuttingDelay.isTimerCompleted() == true)
-    {
-        TimerCutterDelay.start();
-        cutStat = 0;
-        CheeseDelay.start();
-        RunAutoCommand = 4;
-    }
-}
-void CheeseStartDelay(){
-    CheeseDelay.run();
-    RunExtrude();
-    if (CheeseDelay.isTimerCompleted() == true)
-    {
-        Grater.relayOn();
-        RunAutoCommand = 5;
-    }
-}
-
-void RunNormalExtruding(){
-    RunExtrude();
-}
-
-void RunExtrude()
-{
-    RunCut();
-}
-
 void RunCut()
 {
     switch (cutStat)
     {
     case 0:
-        TimerCutterDelay.run();
-        if (TimerCutterDelay.isTimerCompleted() == true)
+        CutterDelay.run();
+        if (CutterDelay.isTimerCompleted() == true)
         {
             currentMillis2 = millis();
             previousMillis2 = currentMillis2;
@@ -309,15 +385,318 @@ void cutterCutRun()
     currentMillis2 = millis();
     if (currentMillis2 - previousMillis2 >= interval2)
     {
-        // save the last time you blinked the LED
         previousMillis2 = currentMillis2;
         Cutter.relayOff();
-        TimerCutterDelay.start();
+        CutterDelay.start();
         cutStat = 0;
     }
     else
     {
         Cutter.relayOn();
+    }
+}
+
+void setTimers()
+{
+    RiceFlourTimer.setTimer(secondsToHHMMSS(parametersTimer[0] * 60));
+    Liquid.setTimer(secondsToHHMMSS(parametersTimer[1] * 60));
+    Boiling.setTimer(secondsToHHMMSS(parametersTimer[2] * 60));
+    Heater.setTimer(secondsToHHMMSS(parametersTimer[3] * 60));
+    Dispensing.setTimer(secondsToHHMMSS(parametersTimer[4] * 60));
+    CutterDelay.setTimer(secondsToHHMMSS(parametersTimer[5]));
+    CuttingDelay.setTimer(secondsToHHMMSS(30));
+    TimerForNextDrop.setTimer(secondsToHHMMSS(parametersTimer[6]));
+}
+
+void RunRiceFlour()
+{
+    if (RiceFlour.distanceToGo() == 0)
+    {
+        RiceFlour.setCurrentPosition(0);
+        RiceFlour.move(moveStep1);
+    }
+}
+
+void RunConveyor1()
+{
+    if (stepConveyor1.distanceToGo() == 0)
+    {
+        stepConveyor1.setCurrentPosition(0);
+        stepConveyor1.move(moveStep2);
+    }
+}
+
+void RunConveyor1upd()
+{
+    if (Conveyor1.distanceToGo() == 0)
+    {
+        Conveyor1.setCurrentPosition(0);
+        Conveyor1.move(Conveyor1moveStep);
+    }
+}
+
+void RunConveyor2()
+{
+    if (stepConveyor2.distanceToGo() == 0)
+    {
+        stepConveyor2.setCurrentPosition(0);
+        stepConveyor2.move(moveStep3);
+    }
+}
+
+void runAllConveyor()
+{
+    RiceFlour.run();
+    stepConveyor1.run();
+    stepConveyor2.run();
+    Conveyor1.run();
+}
+
+void stopAll()
+{
+    RiceFlourTimer.relayOff();
+    RiceFlourTimer.stop();
+
+    Liquid.relayOff();
+    Liquid.stop();
+
+    Boiling.relayOff();
+    Boiling.stop();
+
+    Mixer.relayOff();
+    Mixer.stop();
+
+    Heater.relayOff();
+    Heater.stop();
+
+    Linear.relayOff();
+    Linear.stop();
+
+    Extruder.relayOff();
+    Extruder.stop();
+
+    CutterDelay.relayOff();
+    CutterDelay.stop();
+
+    CuttingDelay.relayOff();
+    CuttingDelay.stop();
+
+    Cutter.relayOff();
+    Cutter.stop();
+
+    RiceDuster.relayOff();
+    RiceDuster.stop();
+
+    RiceDusterDelay.relayOff();
+    RiceDusterDelay.stop();
+
+    TimerForNextDrop.relayOff();
+    TimerForNextDrop.stop();
+
+    DisableSteppers();
+}
+
+int RunAutoFlag = 0;
+int DispenseFlag = 0;
+bool initialMoveConveyorLow = false;
+int runPackageStat = 0;
+/*
+1 - Dispense
+2 - Cooking
+3 - Extruding
+*/
+
+/*
+1 - Dispense Liquid
+2 - Boil
+3 - Dispense Dry Ingre
+4 - Cooking
+5 - Extruding
+*/
+
+void RunAuto()
+{
+    switch (RunAutoFlag)
+    {
+    case 1:
+        RunDispense();
+        break;
+    case 2:
+        RunCooking();
+        break;
+    case 3:
+        RunDispenseFromMixer();
+        break;
+    case 4:
+        Extruding();
+        break;
+    default:
+        stopAll();
+        RunAutoFlag = 0;
+        break;
+    }
+}
+
+void RunDispense()
+{
+    switch (DispenseFlag)
+    {
+    case 0:
+        Liquid.run();
+        Heater.relayOn();
+        Mixer.relayOn();
+        if (Liquid.isTimerCompleted() == true)
+        {
+            DispenseFlag = 1;
+            Boiling.start();
+        }
+        break;
+    case 1:
+        Boiling.run();
+        if (Boiling.isTimerCompleted() == true)
+        {
+            DispenseFlag = 2;
+            RiceFlourTimer.start();
+        }
+        break;
+    case 2:
+        RiceFlour.enableOutputs();
+        RiceFlour.run();
+        RiceFlourTimer.run();
+        if (RiceFlourTimer.isTimerCompleted() == true)
+        {
+            DispenseFlag = 0;
+            RunAutoFlag = 2;
+            Heater.start();
+            RiceFlour.disableOutputs();
+        }
+        else
+        {
+            RunRiceFlour();
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+void RunCooking()
+{
+    Heater.run();
+    Mixer.relayOn();
+    if (Heater.isTimerCompleted() == true)
+    {
+        Dispensing.start();
+        RunAutoFlag = 3;
+    }
+}
+
+void RunDispenseFromMixer()
+{
+    Dispensing.run();
+    Mixer.relayOn();
+    Linear.relayOn();
+    if (Dispensing.isTimerCompleted() == true)
+    {
+        Linear.relayOff();
+        Mixer.relayOff();
+        RunAutoFlag = 4;
+        runPackageStat = 1;
+        setConveyor1();
+        Conveyor1.enableOutputs();
+        stepConveyor2.enableOutputs();
+        CuttingDelay.start();
+    }
+}
+
+bool cutRunFlag = false;
+
+void CutterStartDelay()
+{
+    CuttingDelay.run();
+    if (CuttingDelay.isTimerCompleted() == true)
+    {
+        cutRunFlag = true;
+        CutterDelay.start();
+        cutStat = 0;
+    }
+}
+
+void Extruding()
+{
+    if (cutRunFlag == false)
+    {
+        CutterStartDelay();
+    }
+    else
+    {
+        RunCut();
+        RiceDuster.relayOn();
+    }
+    Extruder.relayOn();
+    Conveyor1.run();
+    testRunConveyor1();
+    readSensors();
+    runPackaging();
+}
+
+bool Sensor1Stat,Sensor2Stat = false;
+void readSensors()
+{
+    Sensor1Stat = Sensor1.read();
+    Sensor2Stat = Sensor2.read();
+}
+
+void runPackaging()
+{
+    switch (runPackageStat)
+    {
+    case 1:
+        if (initialMoveConveyorLow == true)
+        {
+            if (Sensor2Stat == 1)
+            {
+                stepConveyor2.run();
+                RunConveyor2();
+            }
+            else
+            {
+                initialMoveConveyorLow = false;
+            }
+        }
+        else
+        {
+            if (Sensor2Stat == 0)
+            {
+                stepConveyor2.run();
+                RunConveyor2();
+            }
+            else
+            {
+                stepConveyor2.disableOutputs();
+                runPackageStat = 2;
+            }
+        }
+        break;
+    case 2:
+        if (Sensor1Stat == 0)
+        {
+            TimerForNextDrop.start();
+            runPackageStat = 3;
+        }
+        break;
+    case 3:
+        TimerForNextDrop.run();
+        if (TimerForNextDrop.isTimerCompleted() == true)
+        {
+            runPackageStat = 1;
+            stepConveyor2.enableOutputs();
+            initialMoveConveyorLow = true;
+        }
+        break;
+
+    default:
+        break;
     }
 }
 
@@ -511,7 +890,7 @@ void inputCommands()
                 settingsFlag = false;
                 saveSettings();
                 loadSettings();
-                setTimer();
+                setTimers();
                 currentSettingScreen = 0;
             }
             else
@@ -528,7 +907,9 @@ void inputCommands()
         }
         else if (runAutoFlag == true)
         {
+            runAutoFlag = false;
             stopAll();
+            RunAutoFlag = 0;
         }
         else if (testMenuFlag == true)
         {
@@ -539,77 +920,115 @@ void inputCommands()
             }
             else if (currentTestMenuScreen == 0)
             {
-                if (Conveyor.getMotorState() == true)
+                if (testFlagRice == false)
                 {
-                    Conveyor.relayOff();
-                }
-                if (Grinder.getMotorState() == false)
-                {
-                    Grinder.relayOn();
+                    testFlagRice = true;
                 }
                 else
                 {
-                    Grinder.relayOff();
+                    testFlagRice = false;
                 }
             }
             else if (currentTestMenuScreen == 1)
             {
-                if (ExtruderFwd.getMotorState() == false)
+                if (Liquid.getMotorState() == false)
                 {
-                    ExtruderFwd.relayOn();
+                    Liquid.relayOn();
                 }
                 else
                 {
-                    ExtruderFwd.relayOff();
+                    Liquid.relayOff();
                 }
             }
             else if (currentTestMenuScreen == 2)
             {
-                if (ExtruderRwd.getMotorState() == false)
+                if (Mixer.getMotorState() == false)
                 {
-                    ExtruderRwd.relayOn();
+                    Mixer.relayOn();
                 }
                 else
                 {
-                    ExtruderRwd.relayOff();
+                    Mixer.relayOff();
                 }
             }
             else if (currentTestMenuScreen == 3)
             {
-                if (testRunCut == true)
+                if (Heater.getMotorState() == false)
                 {
-                    testRunCut = false;
+                    Heater.relayOn();
                 }
                 else
                 {
-                    testRunCut = true;
+                    Heater.relayOff();
                 }
             }
             else if (currentTestMenuScreen == 4)
             {
-                if (Grater.getMotorState() == false)
+                if (Linear.getMotorState() == false)
                 {
-                    Grater.relayOn();
+                    Linear.relayOn();
                 }
                 else
                 {
-                    Grater.relayOff();
+                    Linear.relayOff();
                 }
             }
             else if (currentTestMenuScreen == 5)
             {
-                if (Grinder.getMotorState() == true)
+                if (Extruder.getMotorState() == false)
                 {
-                    Grinder.relayOff();
-                }
-
-                if (Conveyor.getMotorState() == false)
-                {
-                    Conveyor.relayOn();
+                    Extruder.relayOn();
                 }
                 else
                 {
-                    Conveyor.relayOff();
+                    Extruder.relayOff();
+                }
+            }
+            else if (currentTestMenuScreen == 6)
+            {
+                if (testFlagCutter == false)
+                {
+                    testFlagCutter = true;
+                    cutStat = 0;
+                    CutterDelay.start();
+                }
+                else
+                {
+                    testFlagCutter = false;
+                    CutterDelay.stop();
+                }
+            }
+            else if (currentTestMenuScreen == 7)
+            {
+                if (testFlagConveyor1 == false)
+                {
+                    testFlagConveyor1 = true;
+                }
+                else
+                {
+                    testFlagConveyor1 = false;
+                }
+            }
+            else if (currentTestMenuScreen == 8)
+            {
+                if (testFlagConveyor2 == false)
+                {
+                    testFlagConveyor2 = true;
+                }
+                else
+                {
+                    testFlagConveyor2 = false;
+                }
+            }
+            else if (currentTestMenuScreen == 9)
+            {
+                if (RiceDuster.getMotorState() == false)
+                {
+                    RiceDuster.relayOn();
+                }
+                else
+                {
+                    RiceDuster.relayOff();
                 }
             }
         }
@@ -623,8 +1042,9 @@ void inputCommands()
             {
                 runAutoFlag = true;
                 // Insert Commands for Run Auto
-                Grinder.start();
-                RunAutoCommand = 1;
+                RunAutoFlag = 1;
+                RiceFlourTimer.start();
+                Liquid.start();
                 refreshScreen = 1;
             }
             else if (currentScreen == 2)
@@ -635,15 +1055,17 @@ void inputCommands()
     }
 }
 
-void PrintRunAuto(String job, char *time)
+void PrintRunAuto(String job, String secondJob, char *time)
 {
     lcd.clear();
     lcd.print("Running Auto");
     lcd.setCursor(0, 1);
     lcd.print("Status: " + job);
     lcd.setCursor(0, 2);
+    lcd.print(secondJob);
+    lcd.setCursor(0, 3);
     lcd.print("Timer: ");
-    lcd.setCursor(7, 2);
+    lcd.setCursor(7, 3);
     lcd.print(time);
 }
 
@@ -692,31 +1114,186 @@ void printScreen()
     }
     else if (runAutoFlag == true)
     {
-        if (runAutoFlag == true && RunAutoCommand == 1)
+        switch (RunAutoFlag)
         {
-            PrintRunAuto("Grinding", Grinder.getTimeRemaining());
-        }
-        else if (runAutoFlag == true && RunAutoCommand == 2)
-        {
-            PrintRunAuto("Mixing", ExtruderFwd.getTimeRemaining());
-        }
-        else if (runAutoFlag == true && RunAutoCommand == 3)
-        {
-            PrintRunAuto("Cutting Delay", CuttingDelay.getTimeRemaining());
-        }
-        else if (runAutoFlag == true && RunAutoCommand == 4)
-        {
-            PrintRunAuto("Cheese Delay", CheeseDelay.getTimeRemaining());
-        }
-        else if (runAutoFlag == true && RunAutoCommand == 5)
-        {
-            PrintRunAuto("Extruding", "N/A");
+        case 1:
+            switch (DispenseFlag)
+            {
+            case 0:
+                PrintRunAuto("Liquid Ingre", "", Liquid.getTimeRemaining());
+                break;
+            case 1:
+                PrintRunAuto("Boil", "", Boiling.getTimeRemaining());
+                break;
+            case 2:
+                PrintRunAuto("Dry Ingre", "", RiceFlourTimer.getTimeRemaining());
+                break;
+            default:
+                break;
+            }
+            break;
+        case 2:
+            PrintRunAuto("Cooking", "", Heater.getTimeRemaining());
+            break;
+        case 3:
+            PrintRunAuto("Dispensing", "", Dispensing.getTimeRemaining());
+            break;
+        case 4:
+            switch (runPackageStat)
+            {
+            case 1:
+                char buffer[10];
+                PrintRunAuto("Extruding", "Waiting for Tray", itoa(Conveyor1.currentPosition(),buffer,0));
+                break;
+            case 2:
+                PrintRunAuto("Extruding", "Waiting for Drop", TimerForNextDrop.getTimeRemaining());
+                break;
+            case 3:
+                PrintRunAuto("Extruding", "Dropping", TimerForNextDrop.getTimeRemaining());
+                break;
+            default:
+                break;
+            }
+            break;
+        default:
+            break;
         }
     }
     else if (testMenuFlag == true)
     {
         lcd.clear();
         lcd.print(TestMenuScreen[currentTestMenuScreen]);
+
+        if (currentTestMenuScreen == 0)
+        {
+            if (testFlagRice == true)
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("DRY INGRE : ON");
+            }
+            else
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("DRY INGRE : OFF");
+            }
+        }
+        else if (currentTestMenuScreen == 1)
+        {
+            if (Liquid.getMotorState() == true)
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("LIQUID INGRE : ON");
+            }
+            else
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("DRY INGRE : OFF");
+            }
+        }
+        else if (currentTestMenuScreen == 2)
+        {
+            if (Mixer.getMotorState() == true)
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("MIXER : ON");
+            }
+            else
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("MIXER : OFF");
+            }
+        }
+        else if (currentTestMenuScreen == 3)
+        {
+            if (Heater.getMotorState() == true)
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("HEATER : ON");
+            }
+            else
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("HEATER : OFF");
+            }
+        }
+        else if (currentTestMenuScreen == 4)
+        {
+            if (Linear.getMotorState() == true)
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("DOOR : OPEN");
+            }
+            else
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("DOOR : CLOSE");
+            }
+        }
+        else if (currentTestMenuScreen == 5)
+        {
+            if (Extruder.getMotorState() == true)
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("EXTRUDER : ON");
+            }
+            else
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("EXTRUDER : OFF");
+            }
+        }
+        else if (currentTestMenuScreen == 6)
+        {
+            if (testFlagCutter == true)
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("CUTTER : ON");
+            }
+            else
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("CUTTER : OFF");
+            }
+        }
+        else if (currentTestMenuScreen == 7)
+        {
+            if (testFlagConveyor1 == true)
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("CONVE1 : ON");
+            }
+            else
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("CONVE1 : OFF");
+            }
+        }
+        else if (currentTestMenuScreen == 8)
+        {
+            if (testFlagConveyor2 == true)
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("CONVE2 : ON");
+            }
+            else
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("CONVE2 : OFF");
+            }
+        }
+        else if (currentTestMenuScreen == 9)
+        {
+            if (RiceDuster.getMotorState() == true)
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("RICE DUSTER : ON");
+            }
+            else
+            {
+                lcd.setCursor(0, 2);
+                lcd.print("RICE DUSTER : OFF");
+            }
+        }
 
         if (currentTestMenuScreen == numOfTestMenu - 1)
         {
@@ -747,7 +1324,6 @@ void setupJumper()
 
 void setup()
 {
-    // Encoder Setup
     encoder = new ClickEncoder(3, 2, 4); // Actual
     // encoder = new ClickEncoder(3, 4, 2); // TestBench
     encoder->setAccelerationEnabled(false);
@@ -764,10 +1340,15 @@ void setup()
     lcd.backlight();
     refreshScreen = true;
     Serial.begin(9600);
-
+    setRiceFlour();
+    setStepper1();
+    setStepper2();
+    setConveyor1();
     // saveSettings(); // Disable upon Initialiaze
     loadSettings();
-    setTimer();
+    setTimers();
+    initSensors();
+    DisableSteppers();
 }
 
 void loop()
@@ -782,9 +1363,14 @@ void loop()
         refreshScreen = false;
     }
 
+    if (testMenuFlag == true)
+    {
+        testRun();
+    }
+
     if (runAutoFlag == true)
     {
-        runAutoFunc();
+        RunAuto();
         unsigned long currentMillis = millis();
         if (currentMillis - previousMillis >= interval)
         {
@@ -794,8 +1380,8 @@ void loop()
         }
     }
 
-    if (testMenuFlag == true)
+    if (runAutoFlag == false)
     {
-        runAllTest();
+        runAllConveyor();
     }
 }
